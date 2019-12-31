@@ -1098,12 +1098,41 @@ BOOL _sessionInterrupted = NO;
 
     dispatch_async(self.sessionQueue, ^{
 
+        //Impetus Changes : Moved Codec related code in Async method call
+        if (options[@"codec"]) {
+            if (@available(iOS 10, *)) {
+                AVVideoCodecType videoCodecType = options[@"codec"];
+                if ([self.movieFileOutput.availableVideoCodecTypes containsObject:videoCodecType]) {
+                    self.videoCodecType = videoCodecType;
+                    if(options[@"videoBitrate"]) {
+                        NSString *videoBitrate = options[@"videoBitrate"];
+                        [self.movieFileOutput setOutputSettings:@{
+                                                                  AVVideoCodecKey:videoCodecType,
+                                                                  AVVideoCompressionPropertiesKey:
+                                                                      @{
+                                                                          AVVideoAverageBitRateKey:videoBitrate
+                                                                          }
+                                                                  } forConnection:connection];
+                    } else {
+                        [self.movieFileOutput setOutputSettings:@{AVVideoCodecKey:videoCodecType} forConnection:connection];
+                    }
+                } else {
+                    RCTLogWarn(@"%s: Setting videoCodec is only supported above iOS version 10.", __func__);
+                }
+            }
+        }
+        //Impetus Changes: Added below code to identify the file extension based on the codec type
+        NSString * extenstion = @".mov";
+        if((self.videoCodecType.length > 0) && ([self.videoCodecType.lowercaseString isEqualToString:@"avc1"])){
+            extenstion = @".mp4";
+        }
+        
         NSString *path = nil;
         if (options[@"path"]) {
             path = options[@"path"];
         }
         else {
-            path = [RNFileSystem generatePathInDirectory:[[RNFileSystem cacheDirectoryPath] stringByAppendingPathComponent:@"Camera"] withExtension:@".mov"];
+            path = [RNFileSystem generatePathInDirectory:[[RNFileSystem cacheDirectoryPath] stringByAppendingPathComponent:@"Camera"] withExtension:extenstion];
         }
 
         if ([options[@"mirrorVideo"] boolValue]) {
@@ -1112,7 +1141,7 @@ BOOL _sessionInterrupted = NO;
                 [connection setVideoMirrored:YES];
             }
         }
-
+       
         // finally, commit our config changes before starting to record
         [self.session commitConfiguration];
 
